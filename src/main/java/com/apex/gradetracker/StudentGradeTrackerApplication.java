@@ -1,4 +1,4 @@
-package com.codealpha.gradetracker;
+package com.apex.gradetracker;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

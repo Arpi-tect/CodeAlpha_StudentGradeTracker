@@ -17,6 +17,8 @@
         ]
       });
     </script>
+    <!-- Google Identity Services (OAuth) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <!-- Font -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -42,15 +44,124 @@
     <script type="text/babel" data-presets="custom-react">
         const { useState, useEffect } = React;
 
+        function decodeJwt(token) {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                return JSON.parse(jsonPayload);
+            } catch (e) {
+                console.error("JWT decoding failed:", e);
+                return null;
+            }
+        }
+
+        function Login({ onLogin }) {
+            const handleGuestLogin = () => {
+                onLogin({
+                    name: "Guest User",
+                    email: "guest@apexgrade.io",
+                    picture: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80",
+                    isGuest: true
+                });
+            };
+
+            useEffect(() => {
+                window.handleCredentialResponse = (response) => {
+                    const user = decodeJwt(response.credential);
+                    if (user) {
+                        onLogin({
+                            name: user.name,
+                            email: user.email,
+                            picture: user.picture,
+                            isGuest: false
+                        });
+                    }
+                };
+            }, [onLogin]);
+
+            return (
+                <div className="flex items-center justify-center min-h-[85vh] px-4">
+                    <div className="glass-panel rounded-3xl p-10 max-w-md w-full border-t border-indigo-500/20 text-center relative overflow-hidden">
+                        <div className="absolute -top-24 -left-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl"></div>
+                        <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl"></div>
+
+                        <div className="w-16 h-16 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-indigo-500/20">
+                            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                        </div>
+
+                        <h1 className="text-2xl font-extrabold tracking-wider text-slate-100 mb-2">APEXGRADE</h1>
+                        <p className="text-xs text-slate-400 mb-8 font-semibold tracking-wider">Enterprise Student Performance Analytics</p>
+
+                        <div className="space-y-4">
+                            <div className="flex justify-center">
+                                <div id="g_id_onload"
+                                     data-client_id="855919652758-om1b3kpg3hbfbfl4b5o89s56oas58fl7.apps.googleusercontent.com"
+                                     data-context="signin"
+                                     data-ux_mode="popup"
+                                     data-callback="handleCredentialResponse"
+                                     data-auto_prompt="false">
+                                </div>
+                                <div className="g_id_signin"
+                                     data-type="standard"
+                                     data-shape="pill"
+                                     data-theme="filled_black"
+                                     data-text="signin_with"
+                                     data-size="large"
+                                     data-logo_alignment="left">
+                                </div>
+                            </div>
+
+                            <div className="flex items-center my-4">
+                                <div className="flex-grow border-t border-slate-800"></div>
+                                <span className="mx-4 text-xs text-slate-500 font-bold uppercase tracking-wider">or</span>
+                                <div className="flex-grow border-t border-slate-800"></div>
+                            </div>
+
+                            <button 
+                                onClick={handleGuestLogin}
+                                className="w-full py-3 bg-slate-900 border border-slate-800 text-slate-200 font-bold rounded-full hover:bg-slate-800 transition duration-200 shadow-md hover:border-slate-700 flex items-center justify-center gap-2"
+                            >
+                                <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                Continue as Guest
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         function App() {
+            const [isLoggedIn, setIsLoggedIn] = useState(false);
+            const [userProfile, setUserProfile] = useState(null);
+            
+            const [activeTab, setActiveTab] = useState('analytics');
             const [students, setStudents] = useState([]);
-            const [stats, setStats] = useState({ average: 0, highest: 0, highestName: 'N/A', lowest: 0, lowestName: 'N/A', count: 0 });
+            const [stats, setStats] = useState({ average: 0, highest: 0, highestName: 'N/A', lowest: 0, lowestName: 'N/A', count: 0, mathAverage: 0, physicsAverage: 0, chemistryAverage: 0, csAverage: 0 });
+            
+            // Form states
             const [name, setName] = useState('');
-            const [grade, setGrade] = useState('');
+            const [math, setMath] = useState('');
+            const [physics, setPhysics] = useState('');
+            const [chemistry, setChemistry] = useState('');
+            const [cs, setCs] = useState('');
+
+            const [passingThreshold, setPassingThreshold] = useState(50);
+            const [selectedStudentId, setSelectedStudentId] = useState('');
             const [loading, setLoading] = useState(true);
 
-            // Fetch data on load
             useEffect(() => {
+                const session = localStorage.getItem("apex_grade_session");
+                if (session) {
+                    setUserProfile(JSON.parse(session));
+                    setIsLoggedIn(true);
+                }
                 fetchData();
             }, []);
 
@@ -59,6 +170,9 @@
                     const studentsRes = await fetch('/api/students');
                     const studentsData = await studentsRes.json();
                     setStudents(studentsData);
+                    if (studentsData.length > 0 && !selectedStudentId) {
+                        setSelectedStudentId(studentsData[0].id.toString());
+                    }
 
                     const statsRes = await fetch('/api/students/stats');
                     const statsData = await statsRes.json();
@@ -70,13 +184,29 @@
                 }
             };
 
+            const handleLogin = (profile) => {
+                setUserProfile(profile);
+                setIsLoggedIn(true);
+                localStorage.setItem("apex_grade_session", JSON.stringify(profile));
+            };
+
+            const handleSignOut = () => {
+                setUserProfile(null);
+                setIsLoggedIn(false);
+                localStorage.removeItem("apex_grade_session");
+            };
+
             const handleSubmit = async (e) => {
                 e.preventDefault();
-                if (!name.trim() || !grade.trim()) return;
+                if (!name.trim() || !math.trim() || !physics.trim() || !chemistry.trim() || !cs.trim()) return;
 
-                const numericGrade = parseFloat(grade);
-                if (isNaN(numericGrade) || numericGrade < 0 || numericGrade > 100) {
-                    alert("Grade must be a number between 0 and 100.");
+                const m = parseFloat(math);
+                const p = parseFloat(physics);
+                const c = parseFloat(chemistry);
+                const comp = parseFloat(cs);
+
+                if ([m, p, c, comp].some(g => isNaN(g) || g < 0 || g > 100)) {
+                    alert("All subject grades must be between 0 and 100.");
                     return;
                 }
 
@@ -84,10 +214,19 @@
                     await fetch('/api/students', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name: name.trim(), grade: numericGrade })
+                        body: JSON.stringify({ 
+                            name: name.trim(), 
+                            mathGrade: m,
+                            physicsGrade: p,
+                            chemistryGrade: c,
+                            csGrade: comp
+                        })
                     });
                     setName('');
-                    setGrade('');
+                    setMath('');
+                    setPhysics('');
+                    setChemistry('');
+                    setCs('');
                     fetchData();
                 } catch (err) {
                     console.error("Error saving student:", err);
@@ -104,6 +243,39 @@
                 }
             };
 
+            // Grade distributions count
+            const getGradeDistribution = () => {
+                let dist = { A: 0, B: 0, C: 0, D: 0, F: 0 };
+                students.forEach(s => {
+                    const avg = s.grade;
+                    if (avg >= 90) dist.A++;
+                    else if (avg >= 80) dist.B++;
+                    else if (avg >= 70) dist.C++;
+                    else if (avg >= 60) dist.D++;
+                    else dist.F++;
+                });
+                return dist;
+            };
+
+            const getGPA = (avg) => {
+                if (avg >= 90) return 4.0;
+                if (avg >= 80) return 3.0;
+                if (avg >= 70) return 2.0;
+                if (avg >= 60) return 1.0;
+                return 0.0;
+            };
+
+            const getRemarks = (gpa) => {
+                if (gpa >= 3.5) return "Outstanding performance. Keep up the brilliant work!";
+                if (gpa >= 3.0) return "Excellent academic record. Shows high capability.";
+                if (gpa >= 2.0) return "Good progress, with scope for scaling subject scores.";
+                return "Needs academic mentorship. Action plan recommended.";
+            };
+
+            if (!isLoggedIn) {
+                return <Login onLogin={handleLogin} />;
+            }
+
             if (loading) {
                 return (
                     <div className="flex items-center justify-center min-h-screen">
@@ -112,114 +284,269 @@
                 );
             }
 
+            const activeStudent = students.find(s => s.id.toString() === selectedStudentId);
+            const dist = getGradeDistribution();
+            const maxDist = Math.max(...Object.values(dist), 1);
+            const passCount = students.filter(s => s.grade >= passingThreshold).length;
+            const passRate = students.length > 0 ? (passCount / students.length) * 100 : 0;
+
             return (
-                <div className="max-w-5xl mx-auto">
+                <div className="max-w-6xl mx-auto">
                     {/* Header */}
-                    <div className="glass-panel rounded-3xl p-8 mb-8 text-center border-t border-indigo-500/20">
-                        <h1 className="text-3xl font-extrabold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 mb-2">APEXGRADE ANALYTICS</h1>
-                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Enterprise Student Performance Dashboard</p>
-                    </div>
-
-                    {/* Stats Dashboard */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                        <div className="glass-panel rounded-2xl p-6 flex flex-col items-center justify-center border-l-4 border-indigo-500">
-                            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Class Average</span>
-                            <span className="text-4xl font-extrabold text-indigo-400 glow-indigo">
-                                {stats.average ? stats.average.toFixed(2) : "0.00"}%
-                            </span>
+                    <div className="glass-panel rounded-3xl p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-4 border-t border-indigo-500/20">
+                        <div className="text-center md:text-left">
+                            <h1 className="text-2xl font-extrabold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">APEXGRADE ANALYTICS</h1>
+                            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Enterprise Student Performance Dashboard</p>
                         </div>
-                        <div className="glass-panel rounded-2xl p-6 flex flex-col items-center justify-center border-l-4 border-emerald-500">
-                            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Highest Score</span>
-                            <span className="text-3xl font-extrabold text-emerald-400">
-                                {stats.highest ? stats.highest.toFixed(1) : "0.0"}%
-                            </span>
-                            <span className="text-xs font-semibold text-slate-300 mt-1">({stats.highestName})</span>
-                        </div>
-                        <div className="glass-panel rounded-2xl p-6 flex flex-col items-center justify-center border-l-4 border-rose-500">
-                            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Lowest Score</span>
-                            <span className="text-3xl font-extrabold text-rose-400">
-                                {stats.lowest ? stats.lowest.toFixed(1) : "0.0"}%
-                            </span>
-                            <span className="text-xs font-semibold text-slate-300 mt-1">({stats.lowestName})</span>
+                        <div className="flex items-center gap-4 bg-slate-950/40 px-4 py-2.5 rounded-2xl border border-slate-800/80">
+                            <img src={userProfile.picture} referrerPolicy="no-referrer" className="w-8 h-8 rounded-full border border-indigo-500/30 object-cover" />
+                            <div className="text-left">
+                                <div className="text-xs font-bold text-slate-200 leading-tight">{userProfile.name}</div>
+                                <div className="text-[9px] text-slate-500 leading-tight">{userProfile.email}</div>
+                            </div>
+                            <button onClick={handleSignOut} className="ml-2 text-[10px] font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 px-2.5 py-1.5 rounded-lg transition">Sign Out</button>
                         </div>
                     </div>
 
-                    {/* Main Content Layout */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Form Panel (1 Col) */}
-                        <div className="glass-panel rounded-2xl p-6 h-fit border-t border-slate-800">
-                            <h2 className="text-lg font-bold text-indigo-300 mb-6 pb-2 border-b border-slate-800">Add Student Record</h2>
-                            <form onSubmit={handleSubmit} className="space-y-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-300 uppercase mb-2">Student Name</label>
-                                    <input 
-                                        type="text" 
-                                        value={name} 
-                                        onChange={(e) => setName(e.target.value)} 
-                                        placeholder="e.g. John Doe"
-                                        className="w-full px-4 py-2 bg-slate-900/60 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-100 placeholder-slate-500"
-                                        required 
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-300 uppercase mb-2">Numeric Score (0 - 100)</label>
-                                    <input 
-                                        type="number" 
-                                        value={grade} 
-                                        onChange={(e) => setGrade(e.target.value)} 
-                                        placeholder="e.g. 85.5"
-                                        step="0.1"
-                                        min="0"
-                                        max="100"
-                                        className="w-full px-4 py-2 bg-slate-900/60 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-100 placeholder-slate-500"
-                                        required 
-                                    />
-                                </div>
-                                <button 
-                                    type="submit"
-                                    className="w-full py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-500 transition duration-200 shadow-lg shadow-indigo-600/20 focus:outline-none"
-                                >
-                                    Add Student
-                                </button>
-                            </form>
-                        </div>
+                    {/* Navigation Tabs */}
+                    <div className="flex flex-wrap gap-3 mb-8">
+                        <button onClick={() => setActiveTab('analytics')} className={`px-5 py-3 font-bold rounded-xl text-xs transition duration-200 ${activeTab === 'analytics' ? 'bg-indigo-600 text-white' : 'glass-panel text-slate-300 hover:bg-slate-800/40'}`}>Analytics Dashboard</button>
+                        <button onClick={() => setActiveTab('directory')} className={`px-5 py-3 font-bold rounded-xl text-xs transition duration-200 ${activeTab === 'directory' ? 'bg-indigo-600 text-white' : 'glass-panel text-slate-300 hover:bg-slate-800/40'}`}>Gradebook Registry</button>
+                        <button onClick={() => setActiveTab('reportcard')} className={`px-5 py-3 font-bold rounded-xl text-xs transition duration-200 ${activeTab === 'reportcard' ? 'bg-indigo-600 text-white' : 'glass-panel text-slate-300 hover:bg-slate-800/40'}`}>Report Card Generator</button>
+                    </div>
 
-                        {/* Table Panel (2 Cols) */}
-                        <div className="glass-panel rounded-2xl p-6 lg:col-span-2 border-t border-slate-800">
-                            <h2 className="text-lg font-bold text-indigo-300 mb-6 pb-2 border-b border-slate-800">Gradebook Directory ({stats.count})</h2>
-                            {students.length === 0 ? (
-                                <div className="text-center py-10 text-slate-500 font-medium">No records found. Add a student to start.</div>
-                            ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="text-slate-400 font-semibold text-xs border-b border-slate-800/80 uppercase tracking-wider">
-                                                <th className="py-3 px-4">Student Name</th>
-                                                <th className="py-3 px-4 text-center">Score / Grade</th>
-                                                <th className="py-3 px-4 text-right">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {students.map((student) => (
-                                                <tr key={student.id} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition">
-                                                    <td className="py-4 px-4 font-semibold text-slate-200">{student.name}</td>
-                                                    <td className="py-4 px-4 text-center font-extrabold text-indigo-400">{student.grade.toFixed(1)}%</td>
-                                                    <td className="py-4 px-4 text-right">
-                                                        <button 
-                                                            onClick={() => handleDelete(student.id)}
-                                                            className="px-3 py-1.5 bg-rose-500/10 text-rose-400 font-bold rounded-lg hover:bg-rose-500/20 transition text-xs"
-                                                        >
-                                                            Delete
-                                                        </button>
-                                                    </td>
+                    {/* View Switch */}
+                    {activeTab === 'analytics' && (
+                        <div className="space-y-8">
+                            {/* Class Metrics Stats */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                                <div className="glass-panel rounded-2xl p-5 flex flex-col items-center border-l-4 border-indigo-500">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Class Average</span>
+                                    <span className="text-3xl font-extrabold text-indigo-400 glow-indigo">{stats.average ? stats.average.toFixed(1) : "0.0"}%</span>
+                                </div>
+                                <div className="glass-panel rounded-2xl p-5 flex flex-col items-center border-l-4 border-emerald-500">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Highest Average</span>
+                                    <span className="text-2xl font-extrabold text-emerald-400">{stats.highest ? stats.highest.toFixed(1) : "0.0"}%</span>
+                                    <span className="text-[9px] text-slate-400 mt-1 font-medium truncate max-w-full">({stats.highestName})</span>
+                                </div>
+                                <div className="glass-panel rounded-2xl p-5 flex flex-col items-center border-l-4 border-rose-500">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Lowest Average</span>
+                                    <span className="text-2xl font-extrabold text-rose-400">{stats.lowest ? stats.lowest.toFixed(1) : "0.0"}%</span>
+                                    <span className="text-[9px] text-slate-400 mt-1 font-medium truncate max-w-full">({stats.lowestName})</span>
+                                </div>
+                                <div className="glass-panel rounded-2xl p-5 flex flex-col items-center border-l-4 border-cyan-500">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Pass Rate ({passingThreshold}%)</span>
+                                    <span className="text-3xl font-extrabold text-cyan-400">{passRate.toFixed(1)}%</span>
+                                    <span className="text-[9px] text-slate-400 mt-1 font-medium">{passCount} of {students.length} passed</span>
+                                </div>
+                            </div>
+
+                            {/* Passing Mark Slider */}
+                            <div className="glass-panel rounded-2xl p-6 border-t border-slate-800">
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Adjust Passing Mark Threshold: <span className="text-indigo-400 font-extrabold">{passingThreshold}%</span></label>
+                                <input type="range" min="30" max="80" value={passingThreshold} onChange={(e) => setPassingThreshold(parseInt(e.target.value))} className="w-full h-1.5 bg-slate-900 rounded-lg appearance-none cursor-pointer accent-indigo-500" />
+                            </div>
+
+                            {/* Charts grid */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                {/* SVG Subject Averages Bar Chart */}
+                                <div className="glass-panel rounded-2xl p-6 border-t border-slate-800">
+                                    <h3 className="text-sm font-bold text-indigo-300 uppercase tracking-wider mb-6 pb-2 border-b border-slate-800">Subject Averages Breakdown</h3>
+                                    <div className="flex items-end justify-around h-60 pt-4">
+                                        {[
+                                            { label: "Math", val: stats.mathAverage || 0, color: "fill-indigo-500" },
+                                            { label: "Physics", val: stats.physicsAverage || 0, color: "fill-purple-500" },
+                                            { label: "Chemistry", val: stats.chemistryAverage || 0, color: "fill-pink-500" },
+                                            { label: "CS", val: stats.csAverage || 0, color: "fill-cyan-500" }
+                                        ].map(bar => (
+                                            <div key={bar.label} className="flex flex-col items-center w-16 group">
+                                                <span className="text-xs font-extrabold text-slate-200 mb-2">{bar.val.toFixed(1)}%</span>
+                                                <svg className="w-full overflow-visible" height="150">
+                                                    <rect className={`${bar.color} rx-lg hover:opacity-80 transition duration-300`} x="0" y={150 - (bar.val * 1.5)} width="64" height={bar.val * 1.5} rx="4" />
+                                                </svg>
+                                                <span className="text-xs text-slate-400 font-bold mt-2 uppercase">{bar.label}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* SVG Grade distribution Bar Chart */}
+                                <div className="glass-panel rounded-2xl p-6 border-t border-slate-800">
+                                    <h3 className="text-sm font-bold text-indigo-300 uppercase tracking-wider mb-6 pb-2 border-b border-slate-800">Grade Distribution Ranges</h3>
+                                    <div className="flex items-end justify-around h-60 pt-4">
+                                        {Object.entries(dist).map(([range, count]) => {
+                                            const pct = (count / maxDist) * 100;
+                                            return (
+                                                <div key={range} className="flex flex-col items-center w-14">
+                                                    <span className="text-xs font-bold text-slate-300 mb-2">{count}</span>
+                                                    <svg className="w-full overflow-visible" height="150">
+                                                        <rect className="fill-slate-700/80 hover:fill-indigo-500 transition duration-300" x="0" y={150 - (pct * 1.3)} width="50" height={pct * 1.3} rx="4" />
+                                                    </svg>
+                                                    <span className="text-xs font-bold text-slate-400 mt-2">Grade {range}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'directory' && (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            {/* Input Form */}
+                            <div className="glass-panel rounded-2xl p-6 h-fit border-t border-slate-800">
+                                <h2 className="text-md font-bold text-indigo-300 uppercase mb-6 pb-2 border-b border-slate-800">Add Student Record</h2>
+                                <form onSubmit={handleSubmit} className="space-y-4">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Student Name</label>
+                                        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. John Doe" className="w-full px-4 py-2 bg-slate-900/60 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-200 text-sm placeholder-slate-600" required />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Mathematics</label>
+                                            <input type="number" value={math} onChange={(e) => setMath(e.target.value)} placeholder="0-100" min="0" max="100" className="w-full px-3 py-2 bg-slate-900/60 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-200 text-sm placeholder-slate-600" required />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Physics</label>
+                                            <input type="number" value={physics} onChange={(e) => setPhysics(e.target.value)} placeholder="0-100" min="0" max="100" className="w-full px-3 py-2 bg-slate-900/60 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-200 text-sm placeholder-slate-600" required />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Chemistry</label>
+                                            <input type="number" value={chemistry} onChange={(e) => setChemistry(e.target.value)} placeholder="0-100" min="0" max="100" className="w-full px-3 py-2 bg-slate-900/60 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-200 text-sm placeholder-slate-600" required />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Computer Sci</label>
+                                            <input type="number" value={cs} onChange={(e) => setCs(e.target.value)} placeholder="0-100" min="0" max="100" className="w-full px-3 py-2 bg-slate-900/60 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-200 text-sm placeholder-slate-600" required />
+                                        </div>
+                                    </div>
+                                    <button type="submit" className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition duration-200 shadow-lg shadow-indigo-600/20 text-xs uppercase tracking-wider">Add Student</button>
+                                </form>
+                            </div>
+
+                            {/* Table List */}
+                            <div className="glass-panel rounded-2xl p-6 lg:col-span-2 border-t border-slate-800">
+                                <h2 className="text-md font-bold text-indigo-300 uppercase mb-6 pb-2 border-b border-slate-800">Gradebook Registry ({students.length})</h2>
+                                {students.length === 0 ? (
+                                    <div className="text-center py-10 text-slate-500 font-medium">No student records compiled. Add a student to begin.</div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="text-slate-400 font-bold text-[10px] border-b border-slate-800/80 uppercase tracking-wider">
+                                                    <th className="py-3 px-3">Student Name</th>
+                                                    <th className="py-3 px-3 text-center">Math</th>
+                                                    <th className="py-3 px-3 text-center">Phys</th>
+                                                    <th className="py-3 px-3 text-center">Chem</th>
+                                                    <th className="py-3 px-3 text-center">CS</th>
+                                                    <th className="py-3 px-3 text-center">Overall</th>
+                                                    <th className="py-3 px-3 text-right">Actions</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody>
+                                                {students.map((student) => (
+                                                    <tr key={student.id} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition text-sm">
+                                                        <td className="py-3.5 px-3 font-semibold text-slate-200">{student.name}</td>
+                                                        <td className="py-3.5 px-3 text-center text-slate-400 font-medium">{student.mathGrade.toFixed(0)}</td>
+                                                        <td className="py-3.5 px-3 text-center text-slate-400 font-medium">{student.physicsGrade.toFixed(0)}</td>
+                                                        <td className="py-3.5 px-3 text-center text-slate-400 font-medium">{student.chemistryGrade.toFixed(0)}</td>
+                                                        <td className="py-3.5 px-3 text-center text-slate-400 font-medium">{student.csGrade.toFixed(0)}</td>
+                                                        <td className="py-3.5 px-3 text-center font-bold text-indigo-400">{student.grade.toFixed(1)}%</td>
+                                                        <td className="py-3.5 px-3 text-right">
+                                                            <button onClick={() => handleDelete(student.id)} className="px-2.5 py-1.5 bg-rose-500/10 text-rose-400 font-bold rounded-lg hover:bg-rose-500/20 transition text-[10px]">Delete</button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'reportcard' && (
+                        <div className="space-y-8">
+                            {/* Selector */}
+                            <div className="glass-panel rounded-2xl p-6 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center gap-4">
+                                <label className="block text-xs font-bold text-slate-400 uppercase">Select Target Student:</label>
+                                <select value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)} className="px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none text-slate-200 text-sm font-semibold flex-grow sm:flex-grow-0">
+                                    <option value="" disabled>-- Choose Student --</option>
+                                    {students.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name} (Avg: {s.grade.toFixed(1)}%)</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {activeStudent ? (
+                                <div className="glass-panel rounded-3xl p-8 max-w-xl mx-auto border border-indigo-500/20 text-center relative overflow-hidden bg-slate-950/80">
+                                    {/* Report Card Brand Badge */}
+                                    <div className="absolute top-4 right-4 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-full text-[9px] font-bold text-indigo-300 uppercase tracking-widest">Official Record</div>
+                                    
+                                    <div className="text-center mb-8 border-b border-slate-800 pb-6">
+                                        <h2 className="text-xl font-extrabold text-slate-100 tracking-wider">ACADEMIC REPORT CARD</h2>
+                                        <p className="text-xs text-slate-500 uppercase font-semibold tracking-widest mt-1">APEX ACADEMY OF ADVANCED STUDIES</p>
+                                    </div>
+
+                                    {/* Student Metadata */}
+                                    <div className="grid grid-cols-2 text-left text-xs gap-y-3 mb-6 bg-slate-900/40 p-4 rounded-2xl border border-slate-900/80">
+                                        <div><span className="text-slate-500 font-bold uppercase">Name:</span> <span className="text-slate-200 font-extrabold ml-1">{activeStudent.name}</span></div>
+                                        <div><span className="text-slate-500 font-bold uppercase">ID Ref:</span> <span className="text-slate-200 font-extrabold ml-1">#00{activeStudent.id}</span></div>
+                                        <div><span className="text-slate-500 font-bold uppercase">Semester:</span> <span className="text-slate-200 font-extrabold ml-1">Spring Term</span></div>
+                                        <div><span className="text-slate-500 font-bold uppercase">Passing Limit:</span> <span className="text-slate-200 font-extrabold ml-1">{passingThreshold}%</span></div>
+                                    </div>
+
+                                    {/* Subjects Grades Breakdown */}
+                                    <div className="space-y-3 mb-6">
+                                        {[
+                                            { name: "Mathematics", val: activeStudent.mathGrade },
+                                            { name: "Physics", val: activeStudent.physicsGrade },
+                                            { name: "Chemistry", val: activeStudent.chemistryGrade },
+                                            { name: "Computer Science", val: activeStudent.csGrade }
+                                        ].map(subject => (
+                                            <div key={subject.name} className="flex justify-between items-center bg-slate-900/20 p-3 rounded-xl border border-slate-900 text-xs">
+                                                <span className="font-bold text-slate-300 uppercase">{subject.name}</span>
+                                                <div className="flex items-center gap-4">
+                                                    <span className="font-extrabold text-slate-100">{subject.val.toFixed(0)} / 100</span>
+                                                    <span className={`px-2 py-0.5 rounded font-extrabold uppercase text-[9px] ${subject.val >= passingThreshold ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"}`}>
+                                                        {subject.val >= passingThreshold ? "Pass" : "Fail"}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Aggregates Summary */}
+                                    <div className="grid grid-cols-3 gap-4 border-t border-b border-slate-800 py-6 mb-6">
+                                        <div className="flex flex-col items-center justify-center">
+                                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">Percentage</span>
+                                            <span className="text-2xl font-extrabold text-indigo-400">{activeStudent.grade.toFixed(1)}%</span>
+                                        </div>
+                                        <div className="flex flex-col items-center justify-center border-l border-r border-slate-800">
+                                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">Cumulative GPA</span>
+                                            <span className="text-2xl font-extrabold text-indigo-400">{getGPA(activeStudent.grade).toFixed(1)} / 4.0</span>
+                                        </div>
+                                        <div className="flex flex-col items-center justify-center">
+                                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">Result Status</span>
+                                            <span className={`text-xl font-extrabold uppercase ${activeStudent.grade >= passingThreshold ? "text-emerald-400" : "text-rose-400"}`}>
+                                                {activeStudent.grade >= passingThreshold ? "PASSED" : "FAILED"}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Remarks */}
+                                    <div className="text-left text-xs bg-indigo-500/5 p-4 rounded-2xl border border-indigo-500/10">
+                                        <span className="font-bold text-indigo-300 block mb-1">Evaluator Remarks:</span>
+                                        <p className="text-slate-400 italic leading-relaxed">{getRemarks(getGPA(activeStudent.grade))}</p>
+                                    </div>
                                 </div>
+                            ) : (
+                                <div className="text-center py-10 text-slate-500">Add student records to generate academic report cards.</div>
                             )}
                         </div>
-                    </div>
+                    )}
                 </div>
             );
         }

@@ -1,7 +1,7 @@
-package com.codealpha.gradetracker.controller;
+package com.apex.gradetracker.controller;
 
-import com.codealpha.gradetracker.model.Student;
-import com.codealpha.gradetracker.repository.StudentRepository;
+import com.apex.gradetracker.model.Student;
+import com.apex.gradetracker.repository.StudentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -44,10 +44,20 @@ public class GradeController {
             stats.put("lowest", 0.0);
             stats.put("lowestName", "N/A");
             stats.put("count", 0);
+            
+            stats.put("mathAverage", 0.0);
+            stats.put("physicsAverage", 0.0);
+            stats.put("chemistryAverage", 0.0);
+            stats.put("csAverage", 0.0);
             return stats;
         }
 
         double sum = 0;
+        double mathSum = 0;
+        double physicsSum = 0;
+        double chemistrySum = 0;
+        double csSum = 0;
+        
         double highest = students.get(0).getGrade();
         double lowest = students.get(0).getGrade();
         String highestName = students.get(0).getName();
@@ -56,6 +66,11 @@ public class GradeController {
         for (Student s : students) {
             double g = s.getGrade();
             sum += g;
+            mathSum += s.getMathGrade();
+            physicsSum += s.getPhysicsGrade();
+            chemistrySum += s.getChemistryGrade();
+            csSum += s.getCsGrade();
+            
             if (g > highest) {
                 highest = g;
                 highestName = s.getName();
@@ -66,12 +81,18 @@ public class GradeController {
             }
         }
 
-        stats.put("average", sum / students.size());
+        int count = students.size();
+        stats.put("average", sum / count);
         stats.put("highest", highest);
         stats.put("highestName", highestName);
         stats.put("lowest", lowest);
         stats.put("lowestName", lowestName);
-        stats.put("count", students.size());
+        stats.put("count", count);
+        
+        stats.put("mathAverage", mathSum / count);
+        stats.put("physicsAverage", physicsSum / count);
+        stats.put("chemistryAverage", chemistrySum / count);
+        stats.put("csAverage", csSum / count);
 
         return stats;
     }
